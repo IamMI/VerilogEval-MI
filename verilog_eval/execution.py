@@ -32,14 +32,12 @@ def check_correctness(problem: Dict, completion: str, timeout: float,
 
     def unsafe_execute():
         with create_tempdir():
-
             # These system calls are needed when cleaning up tempdir.
             import os
             import shutil
             rmtree = shutil.rmtree
             rmdir = os.rmdir
             chdir = os.chdir
-
             # Disable functionalities that can make destructive changes to the test.
 # WARNING
 # subprocess.Popen is used to run shell command with calls to iveriog and vvp.
@@ -51,17 +49,14 @@ def check_correctness(problem: Dict, completion: str, timeout: float,
                     problem["prompt"] + "\n" + \
                     completion
 
-                
             if unit_test_length:
                 keywords = re.findall("repeat\([0-9]*\)", verilog_test)
                 for words in keywords:
                     verilog_test = verilog_test.replace(words, "repeat({})".format(unit_test_length))
             
-            with open("{}.sv".format(problem["task_id"]), 'w') as f:    
+            filename = f"{problem['task_id']}_{completion_id}"
+            with open(filename+".sv", 'w') as f:    
                 f.write(verilog_test)
-
-                
-            
             try:
 # WARNING PLEASE READ
 # The following code use subprocess.Popen to run shell command with calls to iveriog and vvp.
@@ -81,14 +76,13 @@ def check_correctness(problem: Dict, completion: str, timeout: float,
                 with swallow_io():
                     with time_limit(timeout):
                         cmd = "iverilog -Wall -Winfloop -Wno-timescale -g2012 \
-                                    -s tb -o test.vvp {}.sv; vvp -n test.vvp".format(problem["task_id"])
+                                    -s tb -o {}.vvp {}.sv; vvp -n {}.vvp".format(filename, filename, filename)
                         
                         """
                         adding timeout options for Popen. something breaks if not using timeout. seems to be working for now.
                         not really sure if its the best/correct way. let me know if anyone has a better solution.
                         https://stackoverflow.com/questions/1191374/using-module-subprocess-with-timeout
                         """
-                        
                         p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                         
                         timer = Timer(timeout, p.kill)
@@ -97,7 +91,7 @@ def check_correctness(problem: Dict, completion: str, timeout: float,
                             out, err = p.communicate()
                         finally:
                             timer.cancel()
-                            
+                        
                         out, err = out.decode("utf-8"), err.decode("utf-8") 
                         match = re.search(r'Mismatches: ([0-9]*) in ([0-9]*) samples', out)
                         if "syntax error" in err:
@@ -180,7 +174,7 @@ def chdir(path):
         os.chdir(old_dir)
 
 @contextlib.contextmanager
-def create_tempdir(path="/deltadisk/huangjiayi/demo/verilog-eval/tmp/"):
+def create_tempdir(path="./tmp/"):
     os.makedirs(path, exist_ok=True)
     with chdir(path):
         yield os.path.abspath(path)

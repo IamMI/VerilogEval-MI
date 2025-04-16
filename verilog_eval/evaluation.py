@@ -10,6 +10,8 @@ import os
 from verilog_eval.data import read_problems, stream_jsonl, write_jsonl
 from verilog_eval.execution import check_correctness, clean_up_simulation
 
+import threading
+
 
 def estimate_pass_at_k(
     num_samples: Union[int, List[int], np.ndarray],
@@ -80,24 +82,24 @@ def evaluate_functional_correctness(
     """
 
     problems = read_problems(problem_file)
-
+    
     # Check the generated samples against test suites.
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
-
         futures = []
         completion_id = Counter()
         n_samples = 0
         results = defaultdict(list)
-
+        
+        
         print("Reading samples...")
         for sample in tqdm.tqdm(stream_jsonl(sample_file)):
             task_id = sample["task_id"]
             completion = sample["completion"]
+            
             if unit_test:
                 args = (problems[task_id], completion, timeout, completion_id[task_id], 100)
             else:
                 args = (problems[task_id], completion, timeout, completion_id[task_id])
-
             future = executor.submit(check_correctness, *args)
             futures.append(future)
             completion_id[task_id] += 1
@@ -113,6 +115,7 @@ def evaluate_functional_correctness(
     if clean_up:
         clean_up_simulation()
 
+    
     # Calculate pass@k.
     total, correct = [], []
     for result in results.values():

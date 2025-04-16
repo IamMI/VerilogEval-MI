@@ -1,1 +1,4 @@
 verilog_eval/__pycache__/*
+VerilogGen/*
+.vscode/*
+tmp/*
